@@ -55,18 +55,19 @@ recibe resultados. Construir o modificar ese flujo queda fuera de esta spec.
   operando con normalidad.
 - **RF-2.3**: CUANDO se detecte un arma en el video, EL SISTEMA DEBERÁ indicar
   visualmente la detección sobre la transmisión (p. ej. recuadro sobre el objeto).
+  El modelo también puede señalar personas detectadas en el encuadre como
+  apoyo visual del monitoreo; estas detecciones de persona son solo
+  informativas y no generan eventos ni se persisten (ver RF-3).
 
 ### RF-3 — Detección y registro de eventos
-- **RF-3.1**: CUANDO aparezca un arma de fuego o un arma blanca en el video
-  con una confianza igual o superior al **70 %**, EL SISTEMA DEBERÁ generar
-  un evento de detección. Las detecciones por debajo del umbral se descartan.
+- **RF-3.1**: CUANDO aparezca un arma en el video con una confianza igual o
+  superior al **25 %**, EL SISTEMA DEBERÁ generar un evento de detección.
+  Las detecciones por debajo del umbral se descartan. El modelo de detección
+  utiliza una clase genérica **arma (weapon)**, sin distinguir entre arma de
+  fuego y arma blanca.
 - **RF-3.2**: CUANDO se genere un evento de detección, EL SISTEMA DEBERÁ
   persistir: fecha y hora, captura de imagen íntegra (sin difuminar rostros),
-  clase detectada (arma de fuego / arma blanca), nivel de confianza y estado
-  del análisis.
-- **RF-3.3**: MIENTRAS exista un evento de la misma clase creado en los
-  últimos **20 segundos**, EL SISTEMA NO DEBERÁ crear un nuevo evento de esa
-  clase (enfriamiento anti-inundación).
+  clase detectada (**arma**), nivel de confianza y estado del análisis.
 
 ### RF-4 — Análisis y notificación (vía n8n)
 - **RF-4.1**: CUANDO se cree un evento de detección, EL SISTEMA DEBERÁ enviar
@@ -110,11 +111,11 @@ recibe resultados. Construir o modificar ese flujo queda fuera de esta spec.
 
 ## Datos persistidos
 
-Los datos se conservan en **SQL Server**. Por cada **evento de detección** se conserva:
+Los datos se conservan en **SQLite**. Por cada **evento de detección** se conserva:
 - Identificador único del evento.
 - Fecha y hora de la detección.
 - Captura de imagen íntegra (sin difuminado de rostros).
-- Clase detectada (arma de fuego / arma blanca).
+- Clase detectada (**arma**).
 - Nivel de confianza de la detección.
 - Estado del análisis: **pendiente → realizado / fallido**.
 - Texto del reporte generado por el análisis externo (solo si fue realizado).
@@ -136,19 +137,20 @@ del umbral de confianza, ni las conversaciones del chatbot.
 
 ## Casos límite
 
-- Arma visible de forma continua durante minutos → el enfriamiento de 20 s
-  evita eventos duplicados (RF-3.3).
-- Dos clases distintas visibles a la vez (pistola + cuchillo) → se genera un
-  evento por clase, cada una con su propio enfriamiento.
-- n8n responde tarde (después del enfriamiento o de mucho tiempo) → la
-  respuesta se asocia al evento original mediante su identificador; no crea
-  un evento nuevo.
+- Arma visible de forma continua durante minutos → se genera un evento en
+  cada frame analizado en el que se detecte (sin enfriamiento ni
+  deduplicación); es responsabilidad del flujo externo o de una spec
+  posterior filtrar duplicados si se requiere.
+- Dos clases distintas visibles a la vez (pistola + cuchillo) → ambas se
+  clasifican como **arma**; se genera un evento por detección de mayor
+  confianza en ese frame.
+- n8n responde tarde (mucho tiempo después) → la respuesta se asocia al
+  evento original mediante su identificador; no crea un evento nuevo.
 - n8n responde con un identificador de evento desconocido → se descarta la
   respuesta y no se altera ningún evento (RF-4.3).
 - Video en bucle: al reiniciar el bucle se vuelve a “ver” la misma arma → se
-  trata como detección normal sujeta a enfriamiento; no hay deduplicación
-  por contenido.
-- Detección con confianza exactamente en 70 % → se considera válida (umbral
+  genera un nuevo evento; no hay deduplicación por contenido.
+- Detección con confianza exactamente en 25 % → se considera válida (umbral
   inclusivo).
 - Pregunta al chatbot cuando no hay ningún reporte → respuesta indicando que
   no hay registros, no un error.
@@ -175,8 +177,8 @@ del umbral de confianza, ni las conversaciones del chatbot.
 1. Un usuario puede iniciar sesión, y sin sesión no se accede a nada.
 2. La pestaña de transmisión muestra el video en bucle con las detecciones
    marcadas, y muestra "cámara sin señal" si la fuente falla.
-3. Al aparecer un arma con confianza ≥ 70 % se crea un evento con captura,
-   clase, confianza y timestamp, respetando el enfriamiento de 20 s.
+3. Al aparecer un arma con confianza ≥ 25 % se crea un evento con captura,
+   clase, confianza y timestamp.
 4. El evento enviado a n8n vuelve con su reporte y queda como "realizado";
    si n8n falla, el evento queda como "fallido" y sigue visible.
 5. El panel de reportes lista y detalla los eventos con su imagen.

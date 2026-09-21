@@ -1,7 +1,7 @@
 # Plan técnico — Spec 001: MVP Monitoreo, reportes y chatbot
 
 Plan de implementación de `_sdd/specs/spec-001-app-mvp/spec.md`. Respeta la
-constitución: stack fijo (Flask, Vue, YOLO, OpenAI vía n8n, SQL Server),
+constitución: stack fijo (Flask, Vue, YOLO, OpenAI vía n8n, SQLite),
 lógica solo en backend, sin tests automatizados (verificación manual),
 identificadores en inglés y textos en español.
 
@@ -13,19 +13,19 @@ identificadores en inglés y textos en español.
 backend/
   app.py                  # Fábrica de la app Flask y registro de blueprints
   config.py               # Configuración vía variables de entorno
-  db.py                   # Conexión a SQL Server y creación de tablas
+  db.py                   # Conexión a SQLite y creación de tablas
   auth/
     routes.py             # Login/logout y protección de sesión        → RF-1
   streaming/
     routes.py             # Endpoint de transmisión MJPEG              → RF-2
     video_source.py       # Lectura del video en bucle + "sin señal"   → RF-2.1, RF-2.2
   detection/
-    detector.py           # Inferencia YOLO por frame (umbral 70 %)    → RF-3.1
-    pipeline.py           # Bucle de detección, enfriamiento 20 s,
-                          #   captura y creación de eventos            → RF-3.2, RF-3.3
+    detector.py           # Inferencia YOLO por frame (umbral 25 %)    → RF-3.1
+    pipeline.py           # Bucle de detección, captura y creación
+                          #   de eventos                                → RF-3.2
     overlay.py            # Dibujo de recuadros sobre el frame         → RF-2.3
   events/
-    repository.py         # CRUD de eventos en SQL Server              → RF-3.2, RF-5
+    repository.py         # CRUD de eventos en SQLite                  → RF-3.2, RF-5
     routes.py             # API de listado/detalle/imagen              → RF-5
   integrations/
     n8n_client.py         # Envío de eventos y preguntas a n8n         → RF-4.1, RF-6.1
@@ -51,7 +51,7 @@ frontend/
 - El bucle de detección corre en el servidor como hilo del backend, independiente
   de que haya navegadores conectados (caso límite "sesión expirada").
 
-## 2. Modelo de datos (SQL Server)
+## 2. Modelo de datos (SQLite)
 
 Dos tablas: `users` y `detection_events`. Los mensajes del chatbot no se
 persisten (RF-6.4).
@@ -60,7 +60,7 @@ persisten (RF-6.4).
 
 | Columna         | Tipo          | Notas                     |
 |-----------------|---------------|---------------------------|
-| `id`            | int IDENTITY PK |                         |
+| `id`            | integer PK autoincrement |               |
 | `username`      | text unique   |                           |
 | `password_hash` | text          | Hash (werkzeug, ya incluido en Flask) |
 
@@ -68,13 +68,13 @@ persisten (RF-6.4).
 
 | Columna           | Tipo                     | Notas                                        |
 |-------------------|--------------------------|----------------------------------------------|
-| `id`              | uniqueidentifier PK      | Identificador del evento (contrato con n8n)  |
-| `detected_at`     | datetimeoffset           | Fecha y hora de la detección                 |
-| `weapon_class`    | nvarchar(32)             | `firearm` \| `knife`                         |
-| `confidence`      | real                     | 0.70 – 1.00                                  |
-| `image`           | varbinary(max)           | Captura íntegra, sin difuminado (RNF-2)      |
-| `analysis_status` | nvarchar(16)             | `pending` \| `done` \| `failed`              |
-| `report_text`     | nvarchar(max) nullable   | Texto del reporte del LLM (solo si `done`)   |
+| `id`              | text PK (UUID)           | Identificador del evento (contrato con n8n)  |
+| `detected_at`     | text (ISO 8601 UTC)      | Fecha y hora de la detección                 |
+| `weapon_class`    | text                     | `weapon`                                     |
+| `confidence`      | real                     | 0.25 – 1.00                                  |
+| `image`           | blob                     | Captura íntegra, sin difuminado (RNF-2)      |
+| `analysis_status` | text                     | `pending` \| `done` \| `failed`              |
+| `report_text`     | text nullable            | Texto del reporte del LLM (solo si `done`)   |
 
 ### Ejemplo de evento serializado en JSON (respuesta de la API)
 
@@ -181,13 +181,15 @@ español y el usuario puede reintentar (RF-6.3). El acotamiento temático
    navegador; se muestrea ~2-4 frames/s para inferencia (suficiente para el
    demo y muy por debajo de los 5 s de RNF-3), aunque el stream se emita a más
    FPS.
-3. **Enfriamiento en memoria por clase + verificación en BD al crear** — el
-   diccionario `{weapon_class: last_event_at}` resuelve RF-3.3 con mínimo
-   código; la verificación al insertar evita duplicados si el hilo se reinicia.
-4. **Imágenes en `varbinary(max)` dentro de SQL Server** — evita gestionar un
+3. **Sin enfriamiento (cooldown): cada frame analizado genera un evento por
+   detección de arma** — simplifica el pipeline; si el volumen de eventos
+   resulta excesivo en un uso real, se reevaluará en una spec posterior.
+4. **Imágenes en `blob` dentro de SQLite** — evita gestionar un
    directorio de archivos con permisos propios; todo dato sensible queda en un
    único lugar con acceso por sesión (RNF-2, principio 5). Volumen del MVP
-   (1 cámara, enfriamiento 20 s) lo hace viable.
+   (1 cámara, enfriamiento 20 s) lo hace viable. SQLite es un único archivo
+   local, suficiente para el volumen y el despliegue de 1 solo desarrollador
+   del MVP; se reevaluará si el proyecto crece a múltiples instancias.
 5. **Callback asíncrono para el análisis, síncrono para el chat** — el
    análisis puede tardar (LLM + Telegram), por eso n8n responde por webhook con
    token compartido; el chat es interactivo y una respuesta síncrona simplifica
@@ -197,8 +199,9 @@ español y el usuario puede reintentar (RF-6.3). El acotamiento temático
 6. **Sesión de Flask con cookie (login simple)** — un solo rol (spec), sin JWT
    ni librerías extra: `session` de Flask + hash de contraseña de werkzeug
    (incluido en Flask). Cumple RF-1 sin ampliar el stack.
-7. **Sin ORM: SQL directo con `pyodbc`** — dos tablas y consultas triviales;
-   un ORM añadiría dependencia y complejidad sin beneficio (principio 1).
+7. **Sin ORM: SQL directo con `sqlite3` (librería estándar)** — dos tablas y
+   consultas triviales; un ORM añadiría dependencia y complejidad sin
+   beneficio (principio 1).
 8. **Etiquetas en español generadas por el backend** — centraliza el idioma de
    los mensajes (principio 6) y mantiene el frontend como capa de presentación
    pura (principio 3).
@@ -210,7 +213,7 @@ español y el usuario puede reintentar (RF-6.3). El acotamiento temático
 | `flask` | Backend y API REST (constitución, stack) |
 | `ultralytics` (YOLO) + `opencv-python` | RF-2, RF-3: detección y lectura del video en bucle |
 | `ultralytics/CLIP` | RF-3.1: vocabulario abierto `gun`/`knife` de YOLO-World |
-| `pyodbc` | Principio 5: conexión a SQL Server mediante controlador ODBC |
+| `sqlite3` (librería estándar de Python) | Principio 5: persistencia local en un único archivo, sin servicio externo |
 | `requests` | RF-4.1, RF-6.1: llamadas HTTP a n8n |
 | `vue` + `vue-router` | Frontend SPA con pestañas (RF-1.2) |
 | `vite` + `@vitejs/plugin-vue` | T-03: servidor y compilación de componentes Vue del frontend |
@@ -224,7 +227,7 @@ Cualquier dependencia fuera de esta tabla exige actualizar primero la spec
 |---|---|
 | RF-1.1–1.3 | `auth/routes.py`, guardia en `router/index.js`, contrato `/api/login` |
 | RF-2.1–2.3 | `streaming/`, `detection/overlay.py`, contrato `/api/stream` |
-| RF-3.1–3.3 | `detection/detector.py` (umbral 70 % inclusivo), `detection/pipeline.py` (enfriamiento 20 s), tabla `detection_events` |
+| RF-3.1–3.2 | `detection/detector.py` (umbral 25 % inclusivo), `detection/pipeline.py`, tabla `detection_events` |
 | RF-4.1–4.3 | `integrations/n8n_client.py`, `integrations/routes.py`, contratos 3.2 y 3.3 |
 | RF-5.1–5.3 | `events/routes.py`, `ReportsView.vue`, contratos `/api/events*` |
 | RF-6.1–6.4 | `chat/routes.py`, `ChatView.vue`, contrato 3.4, sin persistencia de chat |

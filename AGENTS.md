@@ -6,7 +6,7 @@ armas blancas) mediante cámaras, dentro y fuera de un colegio. Dos capas de IA:
 **YOLO** (visión artificial, detección de armas) y **LLM de OpenAI** (análisis de la
 captura, generación del reporte y disparo de alarma/notificación). Arquitectura:
 backend **Flask** (API REST + toda la lógica), frontend **Vue.js** (solo presentación),
-**SQL Server** (persistencia), **n8n** opcional solo si la spec lo justifica.
+**SQLite** (persistencia), **n8n** opcional solo si la spec lo justifica.
 
 ## Comandos
 - Ejecutar backend: `flask --app backend/app run --debug`
@@ -24,7 +24,7 @@ backend **Flask** (API REST + toda la lógica), frontend **Vue.js** (solo presen
 - No implementes funcionalidad que no exista en la spec; si hay que desviarse,
   primero se actualiza la spec.
 - No añadas dependencias, frameworks ni servicios fuera del stack fijado
-  (Flask, Vue, YOLO, OpenAI, SQL Server, n8n justificado) sin preguntar.
+  (Flask, Vue, YOLO, OpenAI, SQLite, n8n justificado) sin preguntar.
 - El frontend nunca llama a YOLO ni a OpenAI ni contiene claves de API; solo
   consume la API REST de Flask.
 - Las imágenes capturadas se guardan íntegras (sin difuminar rostros), son datos

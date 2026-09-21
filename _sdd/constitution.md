@@ -9,7 +9,7 @@ debe cumplirlos. Si un cambio los contradice, primero se modifica esta constituc
 ## 1. Simplicidad del stack
 
 - El stack es exactamente: **Flask** (backend), **Vue.js** (frontend), **YOLO** (detección),
-  **OpenAI** (reportes/alertas), **SQL Server** (datos). **n8n** solo si un flujo lo
+  **OpenAI** (reportes/alertas), **SQLite** (datos). **n8n** solo si un flujo lo
   justifica por escrito en la spec.
 - Prohibido añadir frameworks, librerías o servicios no listados en la spec activa
   sin actualizar primero la spec.
@@ -44,7 +44,8 @@ debe cumplirlos. Si un cambio los contradice, primero se modifica esta constituc
 
 ## 5. Persistencia de datos
 
-- Base de datos: **SQL Server** desde el inicio. Nada se guarda solo en memoria.
+- Base de datos: **SQLite** desde el inicio (archivo local del backend, sin
+  servicio externo). Nada se guarda solo en memoria.
 - Todo evento de detección se persiste con: timestamp, imagen/captura, clase detectada,
   confianza, reporte del LLM y estado de la alerta.
 - Las imágenes se conservan **íntegras y sin distorsión de rostros**: la identificación

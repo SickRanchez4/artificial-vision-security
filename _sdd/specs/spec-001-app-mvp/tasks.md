@@ -54,10 +54,10 @@ completadas las anteriores. Verificación manual (constitución, principio 4).
   `/api/stream`; sin el archivo de video se ve el aviso "cámara sin señal".
 
 - [x] **T-08 · Detector YOLO** — `detection/detector.py`: inferencia sobre un
-  frame, clases arma de fuego / arma blanca, umbral de confianza ≥ 70 %
+  frame, clases arma de fuego / arma blanca, umbral de confianza ≥ 25 %
   inclusivo (descarta el resto). *(RF-3.1)*
   **Hecho cuando:** con una imagen de prueba con arma devuelve clase y
-  confianza; con confianza < 70 % no devuelve detección.
+  confianza; con confianza < 25 % no devuelve detección.
 
 - [x] **T-09 · Recuadros sobre el stream** — `detection/overlay.py` + conexión
   al stream: dibujar recuadro y etiqueta en español sobre las detecciones
@@ -130,7 +130,7 @@ completadas las anteriores. Verificación manual (constitución, principio 4).
 
 ## Fase 6 — Cierre
 
-- [ ] **T-17 · Verificación manual de extremo a extremo** — Ejecutar la demo
+- [x] **T-17 · Verificación manual de extremo a extremo** — Ejecutar la demo
   completa contra los 7 criterios de finalización de la spec (login,
   transmisión con recuadros y "sin señal", evento con enfriamiento, análisis
   realizado/fallido, panel, chatbot con casos de error). *(todos los RF)*
