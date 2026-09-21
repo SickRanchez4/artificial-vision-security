@@ -1,17 +1,18 @@
-"""Acceso mínimo a SQL Server y creación del esquema inicial."""
+"""Acceso mínimo a SQLite y creación del esquema inicial."""
 
+import sqlite3
 from contextlib import contextmanager
+from pathlib import Path
 
-import pyodbc
 from flask import current_app
 from werkzeug.security import generate_password_hash
 
 
 @contextmanager
 def get_connection():
-    connection = pyodbc.connect(
-        current_app.config["SQL_SERVER_CONNECTION_STRING"], timeout=5
-    )
+    connection = sqlite3.connect(current_app.config["SQLITE_DB_PATH"], timeout=5)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
     try:
         yield connection
         connection.commit()
@@ -24,60 +25,45 @@ def get_connection():
 
 def init_database() -> None:
     """Crea las tablas del MVP y el usuario inicial cuando no existen."""
+    Path(current_app.config["SQLITE_DB_PATH"]).parent.mkdir(parents=True, exist_ok=True)
     with get_connection() as connection:
-        cursor = connection.cursor()
-        cursor.execute(
+        connection.executescript(
             """
-            IF OBJECT_ID(N'dbo.users', N'U') IS NULL
-            BEGIN
-                CREATE TABLE dbo.users (
-                    id INT IDENTITY(1, 1) NOT NULL PRIMARY KEY,
-                    username NVARCHAR(100) NOT NULL UNIQUE,
-                    password_hash NVARCHAR(255) NOT NULL
-                );
-            END;
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL
+            );
 
-            IF OBJECT_ID(N'dbo.detection_events', N'U') IS NULL
-            BEGIN
-                CREATE TABLE dbo.detection_events (
-                    id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-                    detected_at DATETIMEOFFSET NOT NULL,
-                    weapon_class NVARCHAR(32) NOT NULL,
-                    confidence REAL NOT NULL,
-                    image VARBINARY(MAX) NOT NULL,
-                    analysis_status NVARCHAR(16) NOT NULL,
-                    report_text NVARCHAR(MAX) NULL,
-                    CONSTRAINT CK_detection_events_weapon_class
-                        CHECK (weapon_class IN (N'firearm', N'knife')),
-                    CONSTRAINT CK_detection_events_confidence
-                        CHECK (confidence >= 0.7 AND confidence <= 1.0),
-                    CONSTRAINT CK_detection_events_analysis_status
-                        CHECK (analysis_status IN (N'pending', N'done', N'failed'))
-                );
-            END;
+            CREATE TABLE IF NOT EXISTS detection_events (
+                id TEXT NOT NULL PRIMARY KEY,
+                detected_at TEXT NOT NULL,
+                weapon_class TEXT NOT NULL
+                    CHECK (weapon_class IN ('weapon')),
+                confidence REAL NOT NULL
+                    CHECK (confidence >= 0.25 AND confidence <= 1.0),
+                image BLOB NOT NULL,
+                analysis_status TEXT NOT NULL
+                    CHECK (analysis_status IN ('pending', 'done', 'failed')),
+                report_text TEXT
+            );
             """
         )
 
         username = current_app.config["APP_USERNAME"]
         password_hash = generate_password_hash(current_app.config["APP_PASSWORD"])
-        cursor.execute(
-            """
-            IF NOT EXISTS (SELECT 1 FROM dbo.users WHERE username = ?)
-                INSERT INTO dbo.users (username, password_hash) VALUES (?, ?);
-            """,
-            username,
-            username,
-            password_hash,
+        connection.execute(
+            "INSERT OR IGNORE INTO users (username, password_hash) VALUES (?, ?)",
+            (username, password_hash),
         )
 
 
 def find_user_by_username(username: str):
     with get_connection() as connection:
-        cursor = connection.cursor()
-        row = cursor.execute(
-            "SELECT id, username, password_hash FROM dbo.users WHERE username = ?",
-            username,
+        row = connection.execute(
+            "SELECT id, username, password_hash FROM users WHERE username = ?",
+            (username,),
         ).fetchone()
         if row is None:
             return None
-        return {"id": row.id, "username": row.username, "password_hash": row.password_hash}
+        return {"id": row["id"], "username": row["username"], "password_hash": row["password_hash"]}

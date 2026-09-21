@@ -1,6 +1,11 @@
 Flask==3.1.2
 opencv-python==4.12.0.88
-pyodbc==5.2.0
 requests==2.32.5
 ultralytics==8.3.199
 git+https://github.com/ultralytics/CLIP.git
+
+# Nota: ultralytics instala PyTorch en su variante CPU por defecto. Para
+# usar GPU NVIDIA (CUDA), instalar manualmente después de este archivo:
+#   pip install --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu124
+# y luego reinstalar numpy<2.3 si queda un conflicto con opencv-python:
+#   pip install "numpy<2.3.0,>=2"

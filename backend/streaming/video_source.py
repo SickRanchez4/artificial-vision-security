@@ -29,6 +29,13 @@ class VideoSource:
             self._release()
             return None
 
+    def get_fps(self, default: float = 25.0) -> float:
+        with self._lock:
+            if not self._ensure_open():
+                return default
+            fps = self._capture.get(cv2.CAP_PROP_FPS)
+            return fps if fps and fps > 1 else default
+
     def close(self) -> None:
         with self._lock:
             self._release()

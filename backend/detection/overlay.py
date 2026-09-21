@@ -2,21 +2,22 @@
 
 import cv2
 
-LABELS = {"firearm": "Arma de fuego", "knife": "Arma blanca"}
+LABELS = {"weapon": "Arma", "person": "Persona"}
+COLORS = {"weapon": (42, 62, 255), "person": (0, 200, 120)}
 
 
 def draw_detections(frame, detections: list[dict]):
     rendered = frame.copy()
     for detection in detections:
         x1, y1, x2, y2 = detection["bbox"]
-        label = LABELS[detection["weapon_class"]]
-        confidence = round(detection["confidence"] * 100)
-        text = f"{label} · {confidence}%"
-        cv2.rectangle(rendered, (x1, y1), (x2, y2), (42, 62, 255), 3)
-        cv2.rectangle(rendered, (x1, max(0, y1 - 32)), (x2, y1), (42, 62, 255), -1)
+        weapon_class = detection["weapon_class"]
+        label = LABELS[weapon_class]
+        color = COLORS[weapon_class]
+        cv2.rectangle(rendered, (x1, y1), (x2, y2), color, 3)
+        cv2.rectangle(rendered, (x1, max(0, y1 - 32)), (x2, y1), color, -1)
         cv2.putText(
             rendered,
-            text,
+            label,
             (x1 + 6, max(22, y1 - 8)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.6,

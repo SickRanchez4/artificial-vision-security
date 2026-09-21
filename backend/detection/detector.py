@@ -1,17 +1,19 @@
 """Adaptador de inferencia YOLO para armas de fuego y armas blancas."""
 
+import torch
 from ultralytics import YOLO
 
 CLASS_ALIASES = {
-    "firearm": {"firearm", "gun", "guns", "pistol", "handgun", "rifle", "weapon"},
-    "knife": {"knife", "knives", "machete", "blade"},
+    "weapon": {"weapon"},
+    "person": {"person"},
 }
 
 
 class WeaponDetector:
-    def __init__(self, model_path: str, confidence: float = 0.70):
+    def __init__(self, model_path: str, confidence: float = 0.25):
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model = YOLO(model_path)
-        self.model.set_classes(["gun", "knife"])
+        self.model.to(self.device)
         self.confidence = confidence
 
     def detect(self, frame) -> list[dict]:

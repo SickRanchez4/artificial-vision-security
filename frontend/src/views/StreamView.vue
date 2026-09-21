@@ -23,7 +23,7 @@ const streamUrl = '/api/stream'
         @load="streamError = false"
         @error="streamError = true"
       />
-      <div class="stream-meta">Detección activa · Umbral 70 % · Enfriamiento 20 s</div>
+      <div class="stream-meta">Detección activa</div>
     </div>
   </section>
 </template>

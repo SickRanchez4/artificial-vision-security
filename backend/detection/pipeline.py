@@ -10,7 +10,7 @@ import cv2
 
 from backend.detection.detector import WeaponDetector
 from backend.detection.overlay import create_offline_frame, draw_detections
-from backend.events.repository import create_event, has_recent_event
+from backend.events.repository import create_event
 from backend.integrations.n8n_client import send_event_for_analysis
 from backend.streaming.video_source import VideoSource
 
@@ -24,15 +24,26 @@ class DetectionPipeline:
         self.detector = None
         self.latest_frame = self._encode(create_offline_frame())
         self.camera_online = False
-        self._last_events = {}
+        self._source_fps = self.source.get_fps()
         self._condition = threading.Condition()
         self._thread = None
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
+        with self.app.app_context():
+            self._warm_up_detector()
         self._thread = threading.Thread(target=self._run, daemon=True, name="detection-pipeline")
         self._thread.start()
+
+    def _warm_up_detector(self) -> None:
+        try:
+            self.detector = WeaponDetector(
+                self.app.config["YOLO_MODEL_PATH"],
+                self.app.config["DETECTION_CONFIDENCE"],
+            )
+        except Exception:
+            logger.exception("No se pudo precargar el modelo YOLO.")
 
     def wait_for_frame(self, timeout: float = 2.0) -> tuple[bytes, bool]:
         with self._condition:
@@ -40,7 +51,7 @@ class DetectionPipeline:
             return self.latest_frame, self.camera_online
 
     def _run(self) -> None:
-        interval = 1 / max(self.app.config["DETECTION_FPS"], 0.5)
+        last_detections: list[dict] = []
         with self.app.app_context():
             while True:
                 started_at = time.monotonic()
@@ -50,10 +61,17 @@ class DetectionPipeline:
                     time.sleep(1)
                     continue
 
-                detections = self._detect(frame)
-                self._create_events(frame, detections)
-                self._publish(draw_detections(frame, detections), True)
-                time.sleep(max(0, interval - (time.monotonic() - started_at)))
+                last_detections = self._detect(frame)
+                if not self.app.config.get("DEBUG_DISABLE_EVENTS"):
+                    try:
+                        self._create_events(frame, last_detections)
+                    except Exception:
+                        logger.exception("No se pudo registrar el evento de detección.")
+
+                self._publish(draw_detections(frame, last_detections), True)
+
+                playback_interval = 1 / self._source_fps
+                time.sleep(max(0, playback_interval - (time.monotonic() - started_at)))
 
     def _detect(self, frame) -> list[dict]:
         try:
@@ -68,35 +86,28 @@ class DetectionPipeline:
             return []
 
     def _create_events(self, frame, detections: list[dict]) -> None:
+        min_confidence = self.app.config["DETECTION_CONFIDENCE"]
         best_by_class = {}
         for detection in detections:
             weapon_class = detection["weapon_class"]
+            if weapon_class != "weapon" or detection["confidence"] < min_confidence:
+                continue
             current = best_by_class.get(weapon_class)
             if current is None or detection["confidence"] > current["confidence"]:
                 best_by_class[weapon_class] = detection
 
         for weapon_class, detection in best_by_class.items():
-            if self._is_in_cooldown(weapon_class):
-                continue
             success, encoded = cv2.imencode(".jpg", frame)
             if not success:
                 continue
             event_id = uuid4()
             detected_at = datetime.now(timezone.utc)
             create_event(event_id, detected_at, weapon_class, detection["confidence"], encoded.tobytes())
-            self._last_events[weapon_class] = time.monotonic()
             threading.Thread(
                 target=self._send_event,
                 args=(str(event_id), detected_at, detection, encoded.tobytes()),
                 daemon=True,
             ).start()
-
-    def _is_in_cooldown(self, weapon_class: str) -> bool:
-        cooldown = self.app.config["DETECTION_COOLDOWN_SECONDS"]
-        last_event = self._last_events.get(weapon_class)
-        if last_event is not None and time.monotonic() - last_event < cooldown:
-            return True
-        return has_recent_event(weapon_class, cooldown)
 
     def _send_event(self, event_id: str, detected_at: datetime, detection: dict, image: bytes) -> None:
         with self.app.app_context():

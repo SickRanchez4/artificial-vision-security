@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 *.pt
+*.db
 .env
 .venv/
 backend/_env
