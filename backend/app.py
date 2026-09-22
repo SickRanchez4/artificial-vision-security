@@ -31,11 +31,9 @@ def create_app() -> Flask:
 
     @app.before_request
     def require_api_session():
-        public_webhook = request.path == "/api/n8n/analysis-result"
         if (
             request.path.startswith("/api/")
             and request.path != "/api/login"
-            and not public_webhook
             and "user_id" not in session
         ):
             return jsonify(error="Debes iniciar sesión."), 401

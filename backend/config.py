@@ -23,18 +23,23 @@ class Config:
     MAX_CONTENT_LENGTH = 256 * 1024 * 1024
     YOLO_MODEL_PATH = os.getenv("YOLO_MODEL_PATH", "yolov8s-security.pt")
     # Umbral de confianza por clase:
-    DETECTION_CONFIDENCE_WEAPON = 0.30
+    DETECTION_CONFIDENCE_WEAPON = 0.50
     DETECTION_CONFIDENCE_PERSON = 0.50
 
     DETECTION_FPS = float(os.getenv("DETECTION_FPS", "3"))
-    N8N_ANALYSIS_WEBHOOK_URL = os.getenv("N8N_ANALYSIS_WEBHOOK_URL", "")
+    # RF-1: cantidad de frames consecutivos con detección de arma exigidos
+    # antes de considerarla una candidata a incidencia.
+    CONFIRMATION_FRAMES = 5
+    # RF-3: segundos de enfriamiento tras enviar una detección confirmada a
+    # n8n, antes de aceptar un nuevo seguimiento.
+    INCIDENT_COOLDOWN_SECONDS = 15
+    N8N_ANALYSIS_WEBHOOK_URL = os.getenv("N8N_ANALYSIS_WEBHOOK_URL", "https://primary-production-0331.up.railway.app/webhook/analyze-image")
     N8N_CHAT_WEBHOOK_URL = os.getenv("N8N_CHAT_WEBHOOK_URL", "")
-    N8N_WEBHOOK_TOKEN = os.getenv("N8N_WEBHOOK_TOKEN", "")
-    N8N_TIMEOUT_SECONDS = int(os.getenv("N8N_TIMEOUT_SECONDS", "10"))
+    N8N_TIMEOUT_SECONDS = int(os.getenv("N8N_TIMEOUT_SECONDS", "30"))
     # Modo debug: corta el registro de eventos (BD + n8n) para poder ajustar
     # la visualización de los recuadros sin generar datos. No borra nada
     # existente; solo evita nuevas inserciones mientras esté en True.
-    DEBUG_DISABLE_EVENTS = _get_bool("DEBUG_DISABLE_EVENTS", True)
+    DEBUG_DISABLE_EVENTS = _get_bool("DEBUG_DISABLE_EVENTS", False)
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     SESSION_COOKIE_SECURE = _get_bool("SESSION_COOKIE_SECURE")
