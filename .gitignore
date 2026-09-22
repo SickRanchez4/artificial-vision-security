@@ -6,5 +6,6 @@ __pycache__/
 .venv/
 backend/_env
 backend/_venv/
+backend/_uploads/
 frontend/node_modules/
 frontend/dist/
