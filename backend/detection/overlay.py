@@ -28,14 +28,15 @@ def draw_detections(frame, detections: list[dict]):
     return rendered
 
 
-def create_offline_frame():
+def create_idle_frame():
+    """Frame mostrado mientras no hay ninguna fuente de video activa (RF-6)."""
     import numpy as np
 
     frame = np.full((720, 1280, 3), (24, 17, 7), dtype=np.uint8)
     cv2.putText(
         frame,
-        "CAMARA SIN SENAL",
-        (390, 360),
+        "SIN FUENTE DE VIDEO ACTIVA",
+        (250, 360),
         cv2.FONT_HERSHEY_SIMPLEX,
         1.6,
         (190, 210, 225),
@@ -43,3 +44,4 @@ def create_offline_frame():
         cv2.LINE_AA,
     )
     return frame
+

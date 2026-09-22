@@ -45,6 +45,11 @@ def create_app() -> Flask:
 
     pipeline = DetectionPipeline(app)
     app.extensions["detection_pipeline"] = pipeline
+    # Estado de la sesión de video empujada activa (archivo o cámara, RF-1/RF-5).
+    app.extensions["camera_source"] = None
+    app.extensions["active_video_session_id"] = None
+    app.extensions["upload_cleanup"] = None
+    app.extensions["video_source_status"] = {"status": "idle", "error_message": None}
     pipeline.start()
 
     return app

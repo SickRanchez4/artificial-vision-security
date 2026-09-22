@@ -47,6 +47,18 @@ def init_database() -> None:
                     CHECK (analysis_status IN ('pending', 'done', 'failed')),
                 report_text TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS video_sessions (
+                id TEXT NOT NULL PRIMARY KEY,
+                source_type TEXT NOT NULL
+                    CHECK (source_type IN ('upload', 'live')),
+                source_ref TEXT,
+                started_at TEXT NOT NULL,
+                ended_at TEXT,
+                status TEXT NOT NULL
+                    CHECK (status IN ('active', 'finished', 'error')),
+                error_message TEXT
+            );
             """
         )
 

@@ -1,46 +1,46 @@
-"""Pipeline continuo de video, detección, persistencia y notificación."""
+"""Pipeline de detección: procesa los frames entregados por la fuente activa."""
 
 import logging
 import threading
-import time
 from datetime import datetime, timezone
 from uuid import uuid4
 
 import cv2
 
 from backend.detection.detector import WeaponDetector
-from backend.detection.overlay import create_offline_frame, draw_detections
+from backend.detection.overlay import create_idle_frame, draw_detections
 from backend.events.repository import create_event
 from backend.integrations.n8n_client import send_event_for_analysis
-from backend.streaming.video_source import VideoSource
+from backend.streaming.video_source import VideoSourcePort
 
 logger = logging.getLogger(__name__)
 
 
 class DetectionPipeline:
+    """Consume frames de la fuente de video activa (archivo o cámara, RF-1) y
+    ejecuta la detección YOLO sobre cada uno. Sin fuente activa no hay
+    lectura ni publicación de frames nuevos: solo se muestra el frame de
+    espera (RF-6).
+    """
+
     def __init__(self, app):
         self.app = app
-        self.source = VideoSource(app.config["VIDEO_SOURCE_PATH"])
         self.detector = None
-        self.latest_frame = self._encode(create_offline_frame())
-        self.camera_online = False
-        self._source_fps = self.source.get_fps()
+        self.latest_frame = self._encode(create_idle_frame())
+        self.source_online = False
         self._condition = threading.Condition()
-        self._thread = None
+        self._active_source: VideoSourcePort | None = None
 
     def start(self) -> None:
-        if self._thread and self._thread.is_alive():
-            return
         with self.app.app_context():
             self._warm_up_detector()
-        self._thread = threading.Thread(target=self._run, daemon=True, name="detection-pipeline")
-        self._thread.start()
 
     def _warm_up_detector(self) -> None:
         try:
             self.detector = WeaponDetector(
                 self.app.config["YOLO_MODEL_PATH"],
-                self.app.config["DETECTION_CONFIDENCE"],
+                self.app.config["DETECTION_CONFIDENCE_WEAPON"],
+                self.app.config["DETECTION_CONFIDENCE_PERSON"],
             )
         except Exception:
             logger.exception("No se pudo precargar el modelo YOLO.")
@@ -48,37 +48,49 @@ class DetectionPipeline:
     def wait_for_frame(self, timeout: float = 2.0) -> tuple[bytes, bool]:
         with self._condition:
             self._condition.wait(timeout=timeout)
-            return self.latest_frame, self.camera_online
+            return self.latest_frame, self.source_online
 
-    def _run(self) -> None:
-        last_detections: list[dict] = []
+    def set_active_source(self, source: VideoSourcePort) -> None:
+        """Reemplaza la fuente activa (RF-1, RF-5) por una que empuja frames.
+
+        Detiene y libera la fuente anterior (si la había) antes de
+        suscribirse a la nueva; solo una fuente puede estar activa a la vez.
+        """
+        self.stop_active_source()
+        source.on_frame(self._handle_pushed_frame)
+        source.start()
+        self._active_source = source
+
+    def stop_active_source(self) -> None:
+        """Detiene y libera la fuente activa, si existe (RF-5), y vuelve al
+        frame de espera (RF-6)."""
+        active = self._active_source
+        self._active_source = None
+        if active is not None:
+            try:
+                active.stop()
+            except Exception:
+                logger.exception("Error al detener la fuente de video activa.")
+        self._publish(create_idle_frame(), False)
+
+    def _handle_pushed_frame(self, frame) -> None:
+        """Procesa un frame entregado por la fuente activa (RF-4)."""
         with self.app.app_context():
-            while True:
-                started_at = time.monotonic()
-                frame = self.source.read()
-                if frame is None:
-                    self._publish(create_offline_frame(), False)
-                    time.sleep(1)
-                    continue
-
-                last_detections = self._detect(frame)
-                if not self.app.config.get("DEBUG_DISABLE_EVENTS"):
-                    try:
-                        self._create_events(frame, last_detections)
-                    except Exception:
-                        logger.exception("No se pudo registrar el evento de detección.")
-
-                self._publish(draw_detections(frame, last_detections), True)
-
-                playback_interval = 1 / self._source_fps
-                time.sleep(max(0, playback_interval - (time.monotonic() - started_at)))
+            detections = self._detect(frame)
+            if not self.app.config.get("DEBUG_DISABLE_EVENTS"):
+                try:
+                    self._create_events(frame, detections)
+                except Exception:
+                    logger.exception("No se pudo registrar el evento de detección.")
+            self._publish(draw_detections(frame, detections), True)
 
     def _detect(self, frame) -> list[dict]:
         try:
             if self.detector is None:
                 self.detector = WeaponDetector(
                     self.app.config["YOLO_MODEL_PATH"],
-                    self.app.config["DETECTION_CONFIDENCE"],
+                    self.app.config["DETECTION_CONFIDENCE_WEAPON"],
+                    self.app.config["DETECTION_CONFIDENCE_PERSON"],
                 )
             return self.detector.detect(frame)
         except Exception:
@@ -86,7 +98,9 @@ class DetectionPipeline:
             return []
 
     def _create_events(self, frame, detections: list[dict]) -> None:
-        min_confidence = self.app.config["DETECTION_CONFIDENCE"]
+        # Los eventos solo se generan para "weapon" (ver filtro abajo), por lo
+        # que se usa su umbral específico, no el de "person".
+        min_confidence = self.app.config["DETECTION_CONFIDENCE_WEAPON"]
         best_by_class = {}
         for detection in detections:
             weapon_class = detection["weapon_class"]
@@ -113,11 +127,11 @@ class DetectionPipeline:
         with self.app.app_context():
             send_event_for_analysis(event_id, detected_at, detection, image)
 
-    def _publish(self, frame, camera_online: bool) -> None:
+    def _publish(self, frame, source_online: bool) -> None:
         encoded = self._encode(frame)
         with self._condition:
             self.latest_frame = encoded
-            self.camera_online = camera_online
+            self.source_online = source_online
             self._condition.notify_all()
 
     @staticmethod

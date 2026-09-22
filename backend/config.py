@@ -17,9 +17,15 @@ class Config:
     APP_USERNAME = os.getenv("APP_USERNAME", "estudiante@uagrm.bo")
     APP_PASSWORD = os.getenv("APP_PASSWORD", "password")
     APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:5000")
-    VIDEO_SOURCE_PATH = os.getenv("VIDEO_SOURCE_PATH", ".\\_videos\\evaluation.mp4")
+    VIDEO_UPLOAD_TMP_DIR = os.getenv("VIDEO_UPLOAD_TMP_DIR", str(_BACKEND_DIR / "_uploads"))
+    # RF-2.2: tamaño máximo de archivo .mp4 subido (256 MB); Flask corta la
+    # subida a este límite antes de que el handler la procese.
+    MAX_CONTENT_LENGTH = 256 * 1024 * 1024
     YOLO_MODEL_PATH = os.getenv("YOLO_MODEL_PATH", "yolov8s-security.pt")
-    DETECTION_CONFIDENCE = float(os.getenv("DETECTION_CONFIDENCE", "0.25"))
+    # Umbral de confianza por clase:
+    DETECTION_CONFIDENCE_WEAPON = 0.30
+    DETECTION_CONFIDENCE_PERSON = 0.50
+
     DETECTION_FPS = float(os.getenv("DETECTION_FPS", "3"))
     N8N_ANALYSIS_WEBHOOK_URL = os.getenv("N8N_ANALYSIS_WEBHOOK_URL", "")
     N8N_CHAT_WEBHOOK_URL = os.getenv("N8N_CHAT_WEBHOOK_URL", "")

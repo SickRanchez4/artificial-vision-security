@@ -29,6 +29,18 @@ nav a.router-link-active { color: #fff; background: #17304a; }
 .stream-frame { overflow: hidden; border: 1px solid #26394f; border-radius: 1rem; background: #03070c; box-shadow: 0 24px 80px rgb(0 0 0 / 30%); }
 .stream-frame img { display: block; width: 100%; min-height: 300px; object-fit: contain; aspect-ratio: 16 / 9; }
 .stream-meta { padding: .8rem 1rem; border-top: 1px solid #26394f; color: #91a6bf; font-size: .8rem; }
+.source-tabs { display: flex; gap: .5rem; margin-bottom: 1.25rem; }
+.source-tab { border: 1px solid #395069; border-radius: .65rem; padding: .6rem 1.1rem; color: #91a6bf; background: transparent; cursor: pointer; }
+.source-tab.active { color: #fff; border-color: #55d6be; background: #10273a; }
+.upload-panel { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem; padding: 1.5rem; border: 1px solid #26394f; border-radius: 1rem; background: #0b1726; }
+.upload-panel label { color: #91a6bf; font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.upload-panel select { padding: .6rem .8rem; border: 1px solid #395069; border-radius: .6rem; color: #dce8f7; background: #0e1c2c; }
+.selected-file-title { margin: 0; color: #dce8f7; font-weight: 700; }
+.upload-actions { display: flex; gap: .75rem; }
+.upload-progress { position: relative; height: 1.6rem; overflow: hidden; border: 1px solid #26394f; border-radius: .8rem; background: #0e1c2c; }
+.upload-progress-bar { height: 100%; background: #55d6be; transition: width .2s ease; }
+.upload-progress span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #061612; font-size: .78rem; font-weight: 700; mix-blend-mode: difference; }
+.upload-error { color: #ffb0b0; }
 .reports-layout { display: grid; grid-template-columns: minmax(280px, .8fr) 1.4fr; gap: 1.25rem; }
 .report-list { display: flex; flex-direction: column; gap: .75rem; max-height: 680px; overflow: auto; }
 .report-item { display: grid; grid-template-columns: 112px 1fr; gap: .9rem; padding: .6rem; border: 1px solid #26394f; border-radius: .8rem; color: #dce8f7; background: #0b1726; text-align: left; cursor: pointer; }

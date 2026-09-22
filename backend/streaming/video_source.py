@@ -1,54 +1,28 @@
-"""Fuente de video pregrabado reproducido en bucle."""
+"""Puerto común de las fuentes de video (RF-4)."""
 
-from pathlib import Path
-from threading import Lock
+from abc import ABC, abstractmethod
+from collections.abc import Callable
 
-import cv2
+import numpy as np
 
 
-class VideoSource:
-    def __init__(self, source_path: str):
-        self.source_path = Path(source_path).expanduser() if source_path else None
-        self._capture = None
-        self._lock = Lock()
+class VideoSourcePort(ABC):
+    """Puerto común que deben implementar los adaptadores de fuente de video.
 
-    def read(self):
-        with self._lock:
-            if not self._ensure_open():
-                return None
+    Homogeneiza fuentes "pull" (archivo, que se leen con OpenCV) y "push"
+    (cámara, que empuja frames desde el navegador) detrás de la misma
+    interfaz: quien consume la fuente solo se suscribe con `on_frame`.
+    """
 
-            success, frame = self._capture.read()
-            if success:
-                return frame
+    @abstractmethod
+    def start(self) -> None:
+        """Abre el recurso de la fuente (archivo, buffer de cámara, etc.)."""
 
-            self._capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            success, frame = self._capture.read()
-            if success:
-                return frame
+    @abstractmethod
+    def stop(self) -> None:
+        """Libera el recurso de la fuente. Debe poder llamarse más de una vez."""
 
-            self._release()
-            return None
+    @abstractmethod
+    def on_frame(self, callback: Callable[[np.ndarray], None]) -> None:
+        """Registra el callback que recibirá cada frame entregado por la fuente."""
 
-    def get_fps(self, default: float = 25.0) -> float:
-        with self._lock:
-            if not self._ensure_open():
-                return default
-            fps = self._capture.get(cv2.CAP_PROP_FPS)
-            return fps if fps and fps > 1 else default
-
-    def close(self) -> None:
-        with self._lock:
-            self._release()
-
-    def _ensure_open(self) -> bool:
-        if self._capture is not None and self._capture.isOpened():
-            return True
-        if self.source_path is None or not self.source_path.is_file():
-            return False
-        self._capture = cv2.VideoCapture(str(self.source_path))
-        return self._capture.isOpened()
-
-    def _release(self) -> None:
-        if self._capture is not None:
-            self._capture.release()
-            self._capture = None
