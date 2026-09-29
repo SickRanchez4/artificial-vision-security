@@ -1,34 +1,62 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { getEvent, getEvents } from '../services/api.js'
+import { deleteEvents, getEvent, getEvents } from '../services/api.js'
 
 const events = ref([])
 const selectedEvent = ref(null)
 const errorMessage = ref('')
+const deleting = ref(false)
 let refreshTimer
+let requestGeneration = 0
 
 function formatDate(value) {
   return new Intl.DateTimeFormat('es', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(value))
 }
 
 async function loadEvents() {
+  if (deleting.value) return
+  const generation = requestGeneration
   try {
-    events.value = await getEvents()
+    const updatedEvents = await getEvents()
+    if (generation !== requestGeneration) return
+    events.value = updatedEvents
     errorMessage.value = ''
     if (selectedEvent.value) {
-      selectedEvent.value = await getEvent(selectedEvent.value.id)
+      const detail = await getEvent(selectedEvent.value.id)
+      if (generation === requestGeneration) selectedEvent.value = detail
     }
   } catch (error) {
-    errorMessage.value = error.message
+    if (generation === requestGeneration) errorMessage.value = error.message
   }
 }
 
 async function selectEvent(event) {
+  if (deleting.value) return
+  const generation = requestGeneration
   try {
-    selectedEvent.value = await getEvent(event.id)
+    const detail = await getEvent(event.id)
+    if (generation === requestGeneration) selectedEvent.value = detail
+  } catch (error) {
+    if (generation === requestGeneration) errorMessage.value = error.message
+  }
+}
+
+async function deleteReports() {
+  if (deleting.value || !events.value.length) return
+  if (!window.confirm('¿Borrar todos los reportes y sus capturas? Esta acción no se puede deshacer.')) return
+
+  deleting.value = true
+  requestGeneration += 1
+  errorMessage.value = ''
+  try {
+    await deleteEvents()
+    events.value = []
+    selectedEvent.value = null
   } catch (error) {
     errorMessage.value = error.message
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -46,7 +74,10 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
         <div class="eyebrow">Historial de incidentes</div>
         <h1>Reportes de seguridad</h1>
       </div>
-      <button class="ghost-button" type="button" @click="loadEvents">Actualizar</button>
+      <div class="heading-actions">
+        <button class="ghost-button" type="button" :disabled="deleting" @click="loadEvents">Actualizar</button>
+        <button class="danger-button" type="button" :disabled="deleting || !events.length" @click="deleteReports">Borrar reportes</button>
+      </div>
     </div>
 
     <p v-if="errorMessage" class="error-message" role="alert">{{ errorMessage }}</p>
@@ -58,6 +89,7 @@ onBeforeUnmount(() => window.clearInterval(refreshTimer))
           class="report-item"
           :class="{ selected: selectedEvent?.id === event.id }"
           type="button"
+          :disabled="deleting"
           @click="selectEvent(event)"
         >
           <img :src="event.image_url" alt="Captura del evento" />

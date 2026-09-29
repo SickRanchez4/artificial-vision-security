@@ -15,7 +15,6 @@ from backend.config import Config
 from backend.db import init_database
 from backend.detection.pipeline import DetectionPipeline
 from backend.events.routes import events_bp
-from backend.integrations.routes import integrations_bp
 from backend.streaming.routes import streaming_bp
 
 
@@ -26,7 +25,6 @@ def create_app() -> Flask:
     app.register_blueprint(auth_bp)
     app.register_blueprint(streaming_bp)
     app.register_blueprint(events_bp)
-    app.register_blueprint(integrations_bp)
     app.register_blueprint(chat_bp)
 
     @app.before_request

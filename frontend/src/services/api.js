@@ -39,6 +39,10 @@ export function getEvents() {
   return apiRequest('/api/events')
 }
 
+export function deleteEvents() {
+  return apiRequest('/api/events', { method: 'DELETE' })
+}
+
 export function getEvent(eventId) {
   return apiRequest(`/api/events/${eventId}`)
 }
@@ -47,6 +51,16 @@ export function askChat(question, conversationId) {
   return apiRequest('/api/chat', {
     method: 'POST',
     body: JSON.stringify({ question, conversation_id: conversationId }),
+  })
+}
+
+export function getChatHistory(conversationId) {
+  return apiRequest(`/api/chat?conversation_id=${encodeURIComponent(conversationId)}`)
+}
+
+export function clearChatHistory(conversationId) {
+  return apiRequest(`/api/chat?conversation_id=${encodeURIComponent(conversationId)}`, {
+    method: 'DELETE',
   })
 }
 

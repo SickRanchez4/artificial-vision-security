@@ -1,21 +1,44 @@
 <script setup>
-import { nextTick, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 
-import { askChat } from '../services/api.js'
+import { askChat, clearChatHistory, getChatHistory } from '../services/api.js'
 
-const conversationId = crypto.randomUUID()
-const messages = ref([
-  { role: 'assistant', text: 'Puedo responder preguntas sobre los reportes de seguridad registrados.' },
-])
+const GREETING = { role: 'assistant', text: 'Puedo responder preguntas sobre los reportes de seguridad registrados.' }
+
+// La conversación se conserva en localStorage para que el historial
+// guardado en la base de datos siga siendo consultable tras recargar la
+// página (POC mínimo, sin login por conversación).
+let conversationId = localStorage.getItem('chat_conversation_id')
+if (!conversationId) {
+  conversationId = crypto.randomUUID()
+  localStorage.setItem('chat_conversation_id', conversationId)
+}
+
+const messages = ref([GREETING])
 const question = ref('')
+const historyLoading = ref(true)
 const loading = ref(false)
+const clearing = ref(false)
 const errorMessage = ref('')
 const chatLog = ref(null)
 let lastQuestion = ''
 
+onMounted(async () => {
+  try {
+    const { messages: history } = await getChatHistory(conversationId)
+    if (history.length) {
+      messages.value = history.map((message) => ({ role: message.role, text: message.content }))
+    }
+  } catch {
+    // Si falla la carga del historial, se sigue con el saludo por defecto.
+  } finally {
+    historyLoading.value = false
+  }
+})
+
 async function sendQuestion(value = question.value) {
   const text = value.trim()
-  if (!text || loading.value) return
+  if (!text || loading.value || clearing.value || historyLoading.value) return
   lastQuestion = text
   if (value === question.value) {
     messages.value.push({ role: 'user', text })
@@ -34,6 +57,22 @@ async function sendQuestion(value = question.value) {
     chatLog.value?.scrollTo({ top: chatLog.value.scrollHeight, behavior: 'smooth' })
   }
 }
+
+async function clearChat() {
+  if (clearing.value || loading.value || historyLoading.value) return
+  clearing.value = true
+  errorMessage.value = ''
+  try {
+    await clearChatHistory(conversationId)
+    messages.value = [GREETING]
+    question.value = ''
+    lastQuestion = ''
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    clearing.value = false
+  }
+}
 </script>
 
 <template>
@@ -43,7 +82,7 @@ async function sendQuestion(value = question.value) {
         <div class="eyebrow">Consultas sobre incidentes</div>
         <h1>Chatbot de reportes</h1>
       </div>
-      <span class="status-pill">Sesión efímera</span>
+      <button type="button" class="danger-button" :disabled="clearing || loading || historyLoading" @click="clearChat">Limpiar chat</button>
     </div>
     <div class="chat-card">
       <div ref="chatLog" class="chat-log" aria-live="polite">
@@ -58,8 +97,8 @@ async function sendQuestion(value = question.value) {
       </div>
       <form class="chat-form" @submit.prevent="sendQuestion()">
         <label class="sr-only" for="question">Pregunta sobre los reportes</label>
-        <input id="question" v-model="question" placeholder="Ej.: ¿Cuántas detecciones hubo hoy?" :disabled="loading" />
-        <button class="primary-button" type="submit" :disabled="loading || !question.trim()">Enviar</button>
+        <input id="question" v-model="question" placeholder="Ej.: ¿Cuántas detecciones hubo hoy?" :disabled="loading || clearing || historyLoading" />
+        <button class="primary-button" type="submit" :disabled="loading || clearing || historyLoading || !question.trim()">Enviar</button>
       </form>
     </div>
   </section>

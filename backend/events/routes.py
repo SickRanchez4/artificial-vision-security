@@ -2,7 +2,7 @@ from io import BytesIO
 
 from flask import Blueprint, jsonify, send_file
 
-from backend.events.repository import get_event, get_event_image, list_events
+from backend.events.repository import delete_all_events, get_event, get_event_image, list_events
 
 events_bp = Blueprint("events", __name__)
 
@@ -10,6 +10,12 @@ events_bp = Blueprint("events", __name__)
 @events_bp.get("/api/events")
 def events_list():
 	return jsonify(list_events())
+
+
+@events_bp.delete("/api/events")
+def events_delete_all():
+	delete_all_events()
+	return jsonify(ok=True)
 
 
 @events_bp.get("/api/events/<uuid:event_id>")

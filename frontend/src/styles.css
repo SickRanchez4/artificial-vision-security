@@ -18,6 +18,11 @@ nav { display: flex; gap: .5rem; }
 nav a { padding: .65rem 1rem; border-radius: .65rem; color: #91a6bf; text-decoration: none; }
 nav a.router-link-active { color: #fff; background: #17304a; }
 .ghost-button { justify-self: end; border: 1px solid #395069; border-radius: .65rem; padding: .65rem 1rem; color: #dce8f7; background: transparent; cursor: pointer; }
+.heading-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+.danger-button { border: 1px solid #ff878f; border-radius: .65rem; padding: .65rem 1rem; color: #fff; background: #8b2635; font-weight: 700; cursor: pointer; transition: background .15s ease, transform .15s ease; }
+.danger-button:hover:not(:disabled) { background: #ab3545; transform: translateY(-1px); }
+.danger-button:focus-visible { outline: 3px solid #ffb0b0; outline-offset: 2px; }
+.danger-button:disabled { opacity: .55; cursor: not-allowed; }
 .content-shell { max-width: 1200px; margin: 0 auto; padding: 3rem 1.5rem; }
 .page-card { min-height: 360px; padding: 2.5rem; border: 1px solid #26394f; border-radius: 1rem; background: linear-gradient(145deg, rgb(18 37 58 / 90%), rgb(9 22 37 / 92%)); box-shadow: 0 24px 80px rgb(0 0 0 / 25%); }
 .page-heading { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; margin-bottom: 2rem; }
