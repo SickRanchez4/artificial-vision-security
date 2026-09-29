@@ -11,7 +11,7 @@ from backend.detection.detector import WeaponDetector
 from backend.detection.incident_tracker import IncidentConfirmationTracker
 from backend.detection.overlay import create_idle_frame, draw_detections
 from backend.events.repository import create_event
-from backend.integrations.n8n_client import verify_incident
+from backend.integrations.openai_client import verify_incident
 from backend.streaming.video_source import VideoSourcePort
 
 logger = logging.getLogger(__name__)
@@ -108,7 +108,7 @@ class DetectionPipeline:
     def _track_incident(self, frame, detections: list[dict]) -> None:
         """Alimenta el seguimiento de confirmación (RF-1) con el frame
         actual; si se confirman los frames consecutivos exigidos, lanza en
-        un hilo la verificación con n8n y el registro del evento (RF-2)."""
+        un hilo la verificación con OpenAI y el registro del evento (RF-2)."""
         confirmed = self._incident_tracker.observe(frame, detections)
         if confirmed is None:
             return
@@ -129,12 +129,12 @@ class DetectionPipeline:
     def _verify_and_register_incident(
         self, event_id, detected_at: datetime, detection: dict, image: bytes
     ) -> None:
-        """Verifica la detección confirmada con n8n (RF-2.1, RF-2.2) y
+        """Verifica la detección confirmada con OpenAI (RF-2) y
         registra el evento según el resultado (RF-2.3–RF-2.5)."""
         with self.app.app_context():
-            result = verify_incident(str(event_id), detected_at, detection, image)
+            result = verify_incident(detected_at, detection, image)
             if result is None:
-                # RF-2.5: sin respuesta válida de n8n, se registra igual
+                # RF-3: sin respuesta válida de OpenAI, se registra igual
                 # como análisis fallido, con la imagen pero sin reporte.
                 create_event(
                     event_id,
@@ -148,7 +148,7 @@ class DetectionPipeline:
             if not result["is_real_incident"]:
                 # RF-2.4: descartado, no se registra nada.
                 return
-            # RF-2.3: incidencia real confirmada por n8n.
+            # RF-2: incidencia real confirmada por OpenAI.
             create_event(
                 event_id,
                 detected_at,

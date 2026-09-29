@@ -54,6 +54,28 @@ def init_database() -> None:
 
         _ensure_detection_events_table(connection)
 
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                conversation_id TEXT NOT NULL,
+                role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+
+        connection.execute(
+            """
+            CREATE VIEW IF NOT EXISTS incident_summary AS
+            SELECT detected_at, weapon_class, confidence, analysis_status,
+                   report_text, suspects_number, suspects_description
+            FROM detection_events
+            ORDER BY detected_at DESC
+            """
+        )
+
         username = current_app.config["APP_USERNAME"]
         password_hash = generate_password_hash(current_app.config["APP_PASSWORD"])
         connection.execute(
@@ -66,7 +88,7 @@ def _ensure_detection_events_table(connection: sqlite3.Connection) -> None:
     """Crea `detection_events` sin restricción de umbral mínimo sobre
     `confidence`: el filtrado por confianza ya lo hace el detector antes de
     llegar aquí (`DETECTION_CONFIDENCE_WEAPON`), y el registro solo ocurre
-    una vez que vuelve la respuesta del webhook de n8n (RF-2.3/RF-2.5), así
+    una vez que vuelve la respuesta de OpenAI (RF-2.3/RF-2.5), así
     que no tiene sentido duplicar esa validación con un `CHECK` en el
     esquema.
 

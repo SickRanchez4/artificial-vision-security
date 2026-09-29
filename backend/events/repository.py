@@ -26,7 +26,7 @@ def create_event(
 ) -> None:
     """Persiste un evento de incidencia ya con su estado final de análisis
     (`done` o `failed`, RF-2.3/RF-2.5): no existe estado `pending` para
-    incidencias de esta spec porque la respuesta de n8n se espera de forma
+    incidencias de esta spec porque la respuesta de OpenAI se espera de forma
     síncrona antes de escribir en la base de datos.
     """
     with get_connection() as connection:
@@ -63,6 +63,12 @@ def list_events() -> list[dict]:
         return [_serialize_event(row) for row in rows]
 
 
+def delete_all_events() -> None:
+    """Elimina los reportes y sus capturas de la base de datos local."""
+    with get_connection() as connection:
+        connection.execute("DELETE FROM detection_events")
+
+
 def get_event(event_id: str) -> dict | None:
     with get_connection() as connection:
         row = connection.execute(
@@ -82,6 +88,14 @@ def get_event_image(event_id: str) -> bytes | None:
             "SELECT image FROM detection_events WHERE id = ?", (event_id,)
         ).fetchone()
         return bytes(row["image"]) if row else None
+
+
+def get_incident_summary() -> list[dict]:
+    """Lee la vista `incident_summary` (spec-004) completa, sin la imagen
+    binaria, para usarla como contexto del chatbot."""
+    with get_connection() as connection:
+        rows = connection.execute("SELECT * FROM incident_summary").fetchall()
+        return [dict(row) for row in rows]
 
 
 def _serialize_event(row) -> dict:

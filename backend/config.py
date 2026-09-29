@@ -30,13 +30,16 @@ class Config:
     # RF-1: cantidad de frames consecutivos con detección de arma exigidos
     # antes de considerarla una candidata a incidencia.
     CONFIRMATION_FRAMES = 5
-    # RF-3: segundos de enfriamiento tras enviar una detección confirmada a
-    # n8n, antes de aceptar un nuevo seguimiento.
+    # RF-3: segundos de enfriamiento tras verificar una detección confirmada,
+    # antes de aceptar un nuevo seguimiento.
     INCIDENT_COOLDOWN_SECONDS = 15
-    N8N_ANALYSIS_WEBHOOK_URL = os.getenv("N8N_ANALYSIS_WEBHOOK_URL", "https://primary-production-0331.up.railway.app/webhook/analyze-image")
-    N8N_CHAT_WEBHOOK_URL = os.getenv("N8N_CHAT_WEBHOOK_URL", "")
-    N8N_TIMEOUT_SECONDS = int(os.getenv("N8N_TIMEOUT_SECONDS", "30"))
-    # Modo debug: corta el registro de eventos (BD + n8n) para poder ajustar
+    # Las llamadas al análisis de capturas y al chat usan la misma clave.
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-5.4-mini")
+    OPENAI_IMAGE_MODEL = os.getenv("OPENAI_IMAGE_MODEL", "gpt-5.4-mini")
+    OPENAI_TIMEOUT_SECONDS = int(os.getenv("OPENAI_TIMEOUT_SECONDS", "30"))
+
+    # Modo debug: corta el registro de eventos para poder ajustar
     # la visualización de los recuadros sin generar datos. No borra nada
     # existente; solo evita nuevas inserciones mientras esté en True.
     DEBUG_DISABLE_EVENTS = _get_bool("DEBUG_DISABLE_EVENTS", False)
